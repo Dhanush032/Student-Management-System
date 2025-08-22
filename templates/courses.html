@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center">
+    <h3>Courses</h3>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createModal">+ Add Course</button>
+</div>
+
+<table class="table table-striped mt-3" id="coursesTable">
+    <thead><tr><th>ID</th><th>Code</th><th>Title</th><th>Teacher</th><th>Actions</th></tr></thead>
+    <tbody></tbody>
+</table>
+
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Create Course</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+            <form id="createForm">
+                <div class="mb-2"><label class="form-label">Code</label><input class="form-control" id="c_code" required></div>
+                <div class="mb-2"><label class="form-label">Title</label><input class="form-control" id="c_title" required></div>
+                <div class="mb-2"><label class="form-label">Description</label><textarea class="form-control" id="c_desc"></textarea></div>
+                <div class="mb-2"><label class="form-label">Teacher ID</label><input class="form-control" id="c_teacher"></div>
+                <button class="btn btn-primary" type="submit">Create</button>
+            </form>
+        <small class="text-muted">Hint: Create a Teacher first; use its ID as teacher_id.</small>
+        </div>
+    </div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadCourses() {
+        const res = await fetch('/api/courses/');
+        const data = await res.json();
+        const tbody = document.querySelector('#coursesTable tbody');
+        tbody.innerHTML = '';
+        data.forEach(c => {
+            const tr = document.createElement('tr');
+            const tname = c.teacher ? c.teacher.name : '-';
+            tr.innerHTML = `
+            <td>${c.id}</td>
+            <td>${c.code}</td>
+            <td>${c.title}</td>
+            <td>${tname}</td>
+            <td>
+                <button class="btn btn-sm btn-warning" onclick="editCourse(${c.id})">Edit</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteCourse(${c.id})">Delete</button>
+            </td>`;
+            tbody.appendChild(tr);
+        });
+    }
+    async function createCourse(e) {
+        e.preventDefault();
+        const body = {
+            code: document.getElementById('c_code').value.trim(),
+            title: document.getElementById('c_title').value.trim(),
+            description: document.getElementById('c_desc').value.trim()
+        };
+        const tid = document.getElementById('c_teacher').value.trim();
+        if (tid) body.teacher_id = parseInt(tid);
+        try {
+            const res = await fetch('/api/courses/', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json', ...authHeaders()},
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) { return handleApiError(res); }
+            await res.json();
+            document.querySelector('#createModal .btn-close').click();
+            loadCourses();
+        } catch (err) { alert(err.message); }
+    }
+
+    async function deleteCourse(id) {
+        if (!confirm('Delete course #' + id + '?')) return;
+        try {
+            const res = await fetch('/api/courses/' + id + '/', {
+            method: 'DELETE',
+            headers: authHeaders()
+            });
+            if (!res.ok) { const d = await res.text(); throw new Error(res.status + ': ' + d); }
+            loadCourses();
+        } catch (err) { alert(err.message); }
+    }
+    async function editCourse(id) {
+        const code = prompt('New code (blank=skip)');
+        const title = prompt('New title (blank=skip)');
+        const desc = prompt('New description (blank=skip)');
+        const tid = prompt('New teacher_id (blank=skip)');
+        const payload = {};
+        if (code) payload.code = code;
+        if (title) payload.title = title;
+        if (desc) payload.description = desc;
+        if (tid) payload.teacher_id = parseInt(tid);
+        try {
+            const res = await fetch('/api/courses/' + id + '/', {
+                method: 'PATCH',
+                headers: {'Content-Type':'application/json', ...authHeaders()},
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) { return handleApiError(res); }
+            await res.json();
+            loadCourses();
+        } catch (err) { alert(err.message); }
+    }
+    document.getElementById('createForm').addEventListener('submit', createCourse);
+    loadCourses();
+</script>
+{% endblock %}
+
